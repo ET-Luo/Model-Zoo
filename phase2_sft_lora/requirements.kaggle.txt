@@ -1,0 +1,11 @@
+unsloth
+trl>=0.9.6
+transformers>=4.44.2
+accelerate>=0.34.2
+datasets>=2.21.0
+peft>=0.12.0
+bitsandbytes
+sentencepiece
+tqdm
+numpy
+
