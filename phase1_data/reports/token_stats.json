@@ -1,6 +1,6 @@
 {
   "model": "Qwen/Qwen2.5-0.5B",
-  "input": "E:\\CodeStore\\Hope\\Zoo\\Model-Zoo\\phase1_data\\data\\processed\\train.jsonl",
+  "input": "/rwthfs/rz/cluster/home/qw765731/projects/Model-Zoo/phase1_data/data/processed/train.jsonl",
   "report": {
     "count": 475,
     "min": 313,

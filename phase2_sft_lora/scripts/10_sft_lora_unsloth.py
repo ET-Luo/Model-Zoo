@@ -108,10 +108,8 @@ def _dry_run_pipeline(cfg: TrainConfig) -> None:
 
 def _train_with_unsloth(cfg: TrainConfig) -> None:
     # Lazy imports so Windows users can run --dry_run without installing Unsloth.
-    from transformers import TrainingArguments
-    from trl import SFTTrainer
-
     from unsloth import FastLanguageModel
+    from trl import SFTConfig, SFTTrainer
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=cfg.model_name,
@@ -151,7 +149,8 @@ def _train_with_unsloth(cfg: TrainConfig) -> None:
 
     _ensure_parent_dir(os.path.join(cfg.output_dir, "placeholder.txt"))
 
-    args = TrainingArguments(
+    # transformers>=4.57 uses `eval_strategy` instead of `evaluation_strategy`.
+    args = SFTConfig(
         output_dir=cfg.output_dir,
         per_device_train_batch_size=cfg.per_device_train_batch_size,
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
@@ -160,7 +159,7 @@ def _train_with_unsloth(cfg: TrainConfig) -> None:
         warmup_steps=cfg.warmup_steps,
         logging_steps=cfg.logging_steps,
         save_steps=cfg.save_steps,
-        evaluation_strategy="steps" if eval_ds is not None else "no",
+        eval_strategy="steps" if eval_ds is not None else "no",
         eval_steps=cfg.eval_steps if eval_ds is not None else None,
         save_total_limit=2,
         seed=cfg.seed,
@@ -168,17 +167,17 @@ def _train_with_unsloth(cfg: TrainConfig) -> None:
         fp16=cfg.fp16,
         bf16=cfg.bf16,
         dataloader_num_workers=2,
+        dataset_text_field="text",
+        dataset_num_proc=2,
+        max_length=cfg.max_seq_length,
+        packing=cfg.packing,
     )
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        dataset_text_field="text",
-        max_seq_length=cfg.max_seq_length,
-        dataset_num_proc=2,
-        packing=cfg.packing,
         args=args,
     )
 
