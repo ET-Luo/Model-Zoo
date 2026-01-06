@@ -2,6 +2,10 @@ import sys
 import argparse
 import json
 import os
+
+# Suggested by Unsloth for specific CUDA environments
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = ""
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -48,11 +52,11 @@ def _render_messages_zh(messages: List[Dict[str, Any]]) -> str:
     return "\n".join(parts).strip()
 
 
-def _messages_to_text(example: Dict[str, Any]) -> str:
+def _messages_to_text(example: Dict[str, Any], eos_token: str = "") -> str:
     msgs = example.get("messages")
     if not isinstance(msgs, list):
         raise ValueError("Example missing 'messages' list")
-    return _render_messages_zh(msgs)
+    return _render_messages_zh(msgs) + eos_token
 
 
 @dataclass
@@ -92,16 +96,18 @@ def _dry_run_pipeline(cfg: TrainConfig) -> None:
     ds = _load_jsonl_as_dataset(cfg.train_jsonl, cfg.val_jsonl)
     train = ds["train"]
     ex0 = train[0]
-    text0 = _messages_to_text(ex0)
+    
+    # Tokenize using transformers tokenizer only (no Unsloth dependency for Windows sanity checks).
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(cfg.model_name, use_fast=True)
+    text0 = _messages_to_text(ex0, eos_token=tok.eos_token)
+    
     print("dry_run: loaded train examples =", len(train))
     print("dry_run: example0 id =", ex0.get("id"))
     print("dry_run: rendered_chars =", len(text0))
     print("dry_run: rendered_preview =", text0[:240].replace("\n", "\\n"))
 
-    # Tokenize using transformers tokenizer only (no Unsloth dependency for Windows sanity checks).
-    from transformers import AutoTokenizer
-
-    tok = AutoTokenizer.from_pretrained(cfg.model_name, use_fast=True)
     out = tok(text0, truncation=True, max_length=cfg.max_seq_length, add_special_tokens=True)
     print("dry_run: tokenized_len =", len(out["input_ids"]))
 
@@ -142,7 +148,7 @@ def _train_with_unsloth(cfg: TrainConfig) -> None:
     ds = _load_jsonl_as_dataset(cfg.train_jsonl, cfg.val_jsonl)
 
     def to_text(batch: Dict[str, Any]) -> Dict[str, Any]:
-        return {"text": _messages_to_text(batch)}
+        return {"text": _messages_to_text(batch, eos_token=tokenizer.eos_token)}
 
     train_ds = ds["train"].map(to_text, remove_columns=ds["train"].column_names)
     eval_ds = ds["validation"].map(to_text, remove_columns=ds["validation"].column_names) if "validation" in ds else None
@@ -163,7 +169,8 @@ def _train_with_unsloth(cfg: TrainConfig) -> None:
         eval_steps=cfg.eval_steps if eval_ds is not None else None,
         save_total_limit=2,
         seed=cfg.seed,
-        report_to="none",
+        report_to="tensorboard",
+        logging_dir=os.path.join(cfg.output_dir, "logs"),
         fp16=cfg.fp16,
         bf16=cfg.bf16,
         dataloader_num_workers=2,
@@ -205,11 +212,11 @@ def main() -> None:
     p.add_argument("--per_device_train_batch_size", type=int, default=2)
     p.add_argument("--gradient_accumulation_steps", type=int, default=8)
     p.add_argument("--learning_rate", type=float, default=2e-4)
-    p.add_argument("--num_train_epochs", type=float, default=1.0)
+    p.add_argument("--num_train_epochs", type=float, default=2.0)
     p.add_argument("--warmup_steps", type=int, default=10)
-    p.add_argument("--logging_steps", type=int, default=10)
-    p.add_argument("--save_steps", type=int, default=200)
-    p.add_argument("--eval_steps", type=int, default=200)
+    p.add_argument("--logging_steps", type=int, default=5)
+    p.add_argument("--save_steps", type=int, default=10)
+    p.add_argument("--eval_steps", type=int, default=10)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--packing", type=str, default="true")
 

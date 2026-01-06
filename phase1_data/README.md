@@ -41,7 +41,7 @@ conda run -n agent python phase1_data\scripts\02_build_sft_data.py `
   --style_strength 0.8 `
   --max_context_chars 800 `
   --max_samples 500
-```
+```  
 
 4) 统计 token（默认用 `Qwen/Qwen2.5-0.5B` 的 tokenizer）：
 

@@ -26,7 +26,7 @@ def _read_jsonl(path: str) -> List[Dict]:
 
 
 def _extract_text_for_tokenize(example: Dict) -> str:
-    # For chat-style datasets: join messages in a deterministic way.
+    # 1. For chat-style datasets: join messages in a deterministic way.
     msgs = example.get("messages")
     if isinstance(msgs, list):
         parts: List[str] = []
@@ -38,7 +38,14 @@ def _extract_text_for_tokenize(example: Dict) -> str:
             parts.append(f"{role.upper()}: {content}")
         return "\n".join(parts)
 
-    # Fallback: try common fields
+    # 2. For Raw QA datasets: combine context + question + answer
+    q = (example.get("question") or "").strip()
+    a = (example.get("answer") or "").strip()
+    c = (example.get("context") or "").strip()
+    if q or a or c:
+        return f"{c}\n{q}\n{a}".strip()
+
+    # 3. Fallback: try other common fields
     for k in ["text", "prompt", "instruction", "input", "output", "response"]:
         v = example.get(k)
         if isinstance(v, str) and v.strip():
